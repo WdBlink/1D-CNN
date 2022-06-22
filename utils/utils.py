@@ -10,6 +10,7 @@ import pickle
 import numpy as np
 from collections import Counter
 from sklearn.model_selection import train_test_split
+from osgeo import gdal
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -377,3 +378,46 @@ def read_data_physionet_4_with_val(window_size=3000, stride=500):
     X_test = np.expand_dims(X_test, 1)
 
     return X_train, X_val, X_test, Y_train, Y_val, Y_test, pid_val, pid_test
+
+
+def read_data_hsi_4_with_val():
+    # read hsi
+    dataset = gdal.Open('./dataset/WHU-Hi/WHU-Hi-LongKou/WHU-Hi-LongKou.tif', gdal.GA_ReadOnly)
+    label = gdal.Open('./dataset/WHU-Hi/WHU-Hi-LongKou/WHU-Hi-LongKou_gt.tif', gdal.GA_ReadOnly)
+    dataset_array = gdal.Dataset.ReadAsArray(dataset)
+    label_array = np.expand_dims(gdal.Dataset.ReadAsArray(label), 0)
+    data = np.reshape(dataset_array, (dataset_array.shape[0], -1))
+    label = np.reshape(label_array, (label_array.shape[0], -1))
+
+    ## scale data
+    all_data = []
+    for i in range(data.shape[1]):
+        tmp_data = data[:, i]
+        tmp_std = np.std(tmp_data)
+        tmp_mean = np.mean(tmp_data)
+        all_data.append((tmp_data - tmp_mean) / tmp_std)
+    ## encode label
+    all_label = []
+    for i in range(label.shape[1]):
+        all_label.append(int(label[:, i]))
+
+    # split train val test
+    X_train, X_test, Y_train, Y_test = train_test_split(all_data, all_label, test_size=0.2, random_state=0)
+    X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, random_state=0)
+
+    # shuffle train
+    X_train = np.array(X_train)
+    X_val = np.array(X_val)
+    X_test = np.array(X_test)
+    Y_train = np.array(Y_train)
+    Y_val = np.array(Y_val)
+    Y_test = np.array(Y_test)
+    shuffle_pid = np.random.permutation(len(Y_train))
+    X_train = X_train[shuffle_pid]
+    Y_train = Y_train[shuffle_pid]
+
+    X_train = np.expand_dims(X_train, 1)
+    X_val = np.expand_dims(X_val, 1)
+    X_test = np.expand_dims(X_test, 1)
+
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test

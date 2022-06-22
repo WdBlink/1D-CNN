@@ -12,6 +12,8 @@ import pickle
 from dataset.dataloaders import AFDataset, MyDataset
 from model.resnet1d import ResNet1D
 from sklearn.metrics import classification_report
+from utils.utils import read_data_hsi_4_with_val, read_data_physionet_4_with_val
+from osgeo import gdal
 
 
 def get_object_detection_model(num_classes):
@@ -76,10 +78,9 @@ def main(opt):
     device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
 
     # 3 classes, mark_type_1，mark_type_2，background
-    num_classes = 4
+    num_classes = 10
 
-    X_train, X_val, X_test, Y_train, Y_val, Y_test, pid_val, pid_test = \
-        utils.read_data_physionet_4_with_val(window_size=3000)
+    X_train, X_val, X_test, Y_train, Y_val, Y_test = read_data_hsi_4_with_val()
     train_dataset = MyDataset(X_train, Y_train)
     val_dataset = MyDataset(X_val, Y_val)
     test_dataset = MyDataset(X_test, Y_test)
@@ -105,9 +106,8 @@ def main(opt):
     params = [p for p in model.parameters() if p.requires_grad]
 
     # SGD
-    optimizer = torch.optim.SGD(params, lr=0.001,
-                                momentum=0.9, weight_decay=0.0005)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    # optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # and a learning rate scheduler
     # cos学习率
@@ -172,7 +172,7 @@ def parse_opt():
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--project', default='runs\\classification\\Resnet1d', help='save results to project/name')
-    parser.add_argument('--name', default='AF', help='save results to project/name')
+    parser.add_argument('--name', default='whu-hi', help='save results to project/name')
     parser.add_argument('--line-thickness', default=3, type=int, help='bounding box thickness (pixels)')
     opt = parser.parse_args()
     return opt
