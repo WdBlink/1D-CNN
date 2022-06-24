@@ -17,7 +17,11 @@ from osgeo import gdal, gdal_array
 from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
+from pathlib import Path
+import glob
 
+
+IMG_FORMATS = ['tif', 'tiff']
 
 @torch.no_grad()
 def evaluate(model, data_loader, device):
@@ -108,6 +112,21 @@ if __name__ == '__main__':
     # read hsi
     # label = gdal.Open('./dataset/WHU-Hi/WHU-Hi-LongKou/WHU-Hi-LongKou_gt.tif', gdal.GA_ReadOnly)
     # label_array = gdal.Dataset.ReadAsArray(label)
+    path = './dataset/'
+    p = str(Path(path).absolute())  # os-agnostic absolute path
+    if '*' in p:
+        files = sorted(glob.glob(p, recursive=True))  # glob
+    elif os.path.isdir(p):
+        files = sorted(glob.glob(os.path.join(p, '*.*')))  # dir
+    elif os.path.isfile(p):
+        files = [p]  # files
+    else:
+        raise Exception(f'ERROR: {p} does not exist')
+
+    images = [x for x in files if x.split('.')[-1].lower() in IMG_FORMATS]
+
+
+
     dataset = gdal.Open('./dataset/kxynl-WNS-WIN-20220530_000_019_cube.tiff', gdal.GA_ReadOnly)
     dataset_array = gdal.Dataset.ReadAsArray(dataset)
     data = np.reshape(dataset_array, (dataset_array.shape[0], -1))
@@ -136,6 +155,7 @@ if __name__ == '__main__':
     plt.imshow(plot_pred)
     plt.show()
     np.save('./dataset/result.npy', plot_pred)
+    np.savetxt('./dataset/result.csv', plot_pred, fmt="%i", delimiter=',')
 
     ar, num = np.unique(plot_pred, return_counts=True)
     plot_mask = Colorize(plot_pred, len(ar))
