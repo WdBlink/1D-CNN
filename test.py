@@ -125,44 +125,44 @@ if __name__ == '__main__':
 
     images = [x for x in files if x.split('.')[-1].lower() in IMG_FORMATS]
 
+    for im_path in images:
+        dataset = gdal.Open(im_path, gdal.GA_ReadOnly)
+        dataset_array = gdal.Dataset.ReadAsArray(dataset)
+        data = np.reshape(dataset_array, (dataset_array.shape[0], -1))
+        name = Path(im_path).stem
 
+        ## scale data
+        all_data = []
+        for i in range(data.shape[1]):
+            tmp_data = data[:, i]
+            tmp_std = np.std(tmp_data)
+            tmp_mean = np.mean(tmp_data)
+            all_data.append((tmp_data - tmp_mean) / tmp_std)
 
-    dataset = gdal.Open('./dataset/kxynl-WNS-WIN-20220530_000_019_cube.tiff', gdal.GA_ReadOnly)
-    dataset_array = gdal.Dataset.ReadAsArray(dataset)
-    data = np.reshape(dataset_array, (dataset_array.shape[0], -1))
+        test_data = np.array(all_data)
+        test_data = np.expand_dims(test_data, 1)
 
-    ## scale data
-    all_data = []
-    for i in range(data.shape[1]):
-        tmp_data = data[:, i]
-        tmp_std = np.std(tmp_data)
-        tmp_mean = np.mean(tmp_data)
-        all_data.append((tmp_data - tmp_mean) / tmp_std)
+        test_dataset = TestDataset(test_data)
+        data_loader_test = torch.utils.data.DataLoader(test_dataset, batch_size=32)
 
-    test_data = np.array(all_data)
-    test_data = np.expand_dims(test_data, 1)
+        device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
+        model = torch.load('./runs/classification/Resnet1dAF.pkl')
+        model.to(device)
+        model.eval()
 
-    test_dataset = TestDataset(test_data)
-    data_loader_test = torch.utils.data.DataLoader(test_dataset, batch_size=32)
+        all_pred = evaluate(model, data_loader_test, device)
+        plot_pred = np.reshape(all_pred, (dataset_array.shape[1], dataset_array.shape[2]))
+        plt.imshow(plot_pred)
+        plt.show()
+        np.save('./dataset/result.npy', plot_pred)
+        np.savetxt('./dataset/result.csv', plot_pred, fmt="%i", delimiter=',')
 
-    device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
-    model = torch.load('./runs/classification/Resnet1dAF.pkl')
-    model.to(device)
-    model.eval()
+        ar, num = np.unique(plot_pred, return_counts=True)
+        plot_mask = Colorize(plot_pred, len(ar))
+        cv2.imwrite('./dataset/pred.jpg', plot_mask)
 
-    all_pred = evaluate(model, data_loader_test, device)
-    plot_pred = np.reshape(all_pred, (dataset_array.shape[1], dataset_array.shape[2]))
-    plt.imshow(plot_pred)
-    plt.show()
-    np.save('./dataset/result.npy', plot_pred)
-    np.savetxt('./dataset/result.csv', plot_pred, fmt="%i", delimiter=',')
-
-    ar, num = np.unique(plot_pred, return_counts=True)
-    plot_mask = Colorize(plot_pred, len(ar))
-    cv2.imwrite('./dataset/pred.jpg', plot_mask)
-
-    raster_file = './dataset/pred.tif'  # 输出的栅格文件路径
-    projection = dataset.GetProjection()
-    transform = dataset.GetGeoTransform()
-    arr2raster(plot_pred, raster_file, prj=projection, trans=transform)
+        raster_file = './dataset/pred.tif'  # 输出的栅格文件路径
+        projection = dataset.GetProjection()
+        transform = dataset.GetGeoTransform()
+        arr2raster(plot_pred, raster_file, prj=projection, trans=transform)
 
